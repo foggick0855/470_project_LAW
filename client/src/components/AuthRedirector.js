@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+// client/src/components/AuthRedirector.js
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 
@@ -18,7 +19,7 @@ const AuthRedirector = () => {
         } else if (decoded?.role === 'Client') {
           navigate('/dashboard');
         } else {
-          navigate('/login'); // fallback if role is unknown
+          navigate('/login');
         }
       } catch (err) {
         console.error('Invalid token:', err);
@@ -28,7 +29,7 @@ const AuthRedirector = () => {
     } else {
       navigate('/login');
     }
-  }, [navigate]); // ✅ navigate included to fix the warning
+  }, [navigate]);
 
   return null;
 };

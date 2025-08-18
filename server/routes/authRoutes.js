@@ -1,14 +1,15 @@
-// routes/authRoutes.js
+// server/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
 const { registerUser, loginUser } = require('../controllers/authController');
+const { protect } = require('../middleware/authMiddleware');
 
-// @route   POST /api/auth/register
-// @desc    Register new user
 router.post('/register', registerUser);
-
-// @route   POST /api/auth/login
-// @desc    Login user and get token
 router.post('/login', loginUser);
+
+// optional current-user endpoint if you use it
+router.get('/me', protect, async (req, res) => {
+  res.json({ user: { id: req.user._id, name: req.user.name, role: req.user.role } });
+});
 
 module.exports = router;

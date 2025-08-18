@@ -1,39 +1,33 @@
 // server/models/User.js
 const mongoose = require('mongoose');
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-  },
+const userSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
 
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-  },
+    role: {
+      type: String,
+      enum: ['Client', 'Admin', 'Mediator'],
+      default: 'Client',
+    },
 
-  password: {
-    type: String,
-    required: true,
-  },
+    // Mediator’s bio / qualification summary
+    qualification: { type: String, default: '' },
 
-  role: {
-    type: String,
-    enum: ['Client', 'Admin', 'Mediator'],
-    default: 'Client',
+    // Unified status for ALL users
+    // "Pending"   -> awaiting approval (used for Mediators)
+    // "Accepted"  -> active user (default for Clients, approved Mediators)
+    // "Rejected"  -> banned/denied
+    status: {
+      type: String,
+      enum: ['Pending', 'Accepted', 'Rejected'],
+      default: 'Accepted',
+      index: true,
+    },
   },
-
-  qualification: {
-    type: String, // Only for Mediators
-  },
-
-  isVerified: {
-    type: Boolean,
-    default: false, // Admin will verify Mediators
-  },
-}, {
-  timestamps: true,
-});
+  { timestamps: true }
+);
 
 module.exports = mongoose.model('User', userSchema);

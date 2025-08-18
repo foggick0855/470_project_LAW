@@ -1,23 +1,65 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# -------------------------------------------------
+# Root .gitignore for ADR_PLATFORM (client + server)
+# -------------------------------------------------
 
-# dependencies
-/node_modules
-/.pnp
+# === Dependencies / Package Managers ===
+node_modules/
+.pnp
 .pnp.js
 
-# testing
-/coverage
+# === Builds & Bundles ===
+build/
+dist/
 
-# production
-/build
+# (If client/server have their own build folders, these catch them too)
+client/build/
+server/build/
 
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# === Caches ===
+.npm/
+.yarn/
+.cache/
+.eslintcache
+parcel-cache/
 
+# === Test Artifacts ===
+coverage/
+
+# === Environment & Secrets (root + per-package) ===
+.env
+.env.*
+client/.env
+client/.env.*
+server/.env
+server/.env.*
+
+# === Runtime Uploads (do NOT commit user files) ===
+server/uploads/
+uploads/
+
+# If you want the folder tracked but empty, add an empty file:
+# server/uploads/.gitkeep
+
+# === Logs ===
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+
+# === OS / Editor Junk ===
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.swp
+
+# === Misc common ignores ===
+*.tgz
+*.orig
+*.tmp
