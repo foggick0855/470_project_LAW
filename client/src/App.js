@@ -17,6 +17,17 @@ import CaseDetail from './components/CaseDetail';
 // Admin case intake
 import AdminCases from './components/AdminCases';
 
+// ✅ Chat pages
+import MessagesListPage from './components/MessagesListPage';
+import ChatPage from './components/ChatPage';
+
+// Mediator schedule management
+import ClientSchedulePage from './components/ClientSchedulePage';
+import MediatorSchedulePage from './components/MediatorSchedulePage';
+
+// ✅ NEW: Agreement Drafts page
+import AgreementDraftsPage from './pages/AgreementDraftsPage';
+
 const App = () => {
   return (
     <Router>
@@ -71,12 +82,58 @@ const App = () => {
           }
         />
 
+        {/* ✅ NEW: Agreements route */}
+        <Route
+          path="/cases/:caseId/agreements"
+          element={
+            <PrivateRoute>
+              <AgreementDraftsPage />
+            </PrivateRoute>
+          }
+        />
+
         {/* Admin case intake */}
         <Route
           path="/admin/cases"
           element={
             <PrivateRoute>
               <AdminCases />
+            </PrivateRoute>
+          }
+        />
+
+        {/* ✅ Messages */}
+        <Route
+          path="/messages"
+          element={
+            <PrivateRoute>
+              <MessagesListPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/messages/:caseId"
+          element={
+            <PrivateRoute>
+              <ChatPage />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Mediator schedule management */}
+        <Route
+          path="/schedule/client"
+          element={
+            <PrivateRoute>
+              <ClientSchedulePage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/schedule/mediator"
+          element={
+            <PrivateRoute>
+              <MediatorSchedulePage />
             </PrivateRoute>
           }
         />

@@ -9,9 +9,19 @@ const green = '#14532d';
 const MediatorDashboard = () => {
   const navigate = useNavigate();
   const [name, setName] = useState('Mediator');
+  const [id, setId] = useState(null); // mediatorId
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+
+  // ✅ upcoming sessions (FR-8 mini preview)
+  const [upcoming, setUpcoming] = useState([]);
+
+  // ✅ reviews state
+  const [avgRating, setAvgRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [reviews, setReviews] = useState([]);
+  const [showReviews, setShowReviews] = useState(false); // hidden by default
 
   // Auth + role guard
   useEffect(() => {
@@ -20,8 +30,8 @@ const MediatorDashboard = () => {
     try {
       const decoded = jwtDecode(token);
       setName(decoded.name || 'Mediator');
+      setId(decoded.id); // store userId for review fetch
       if (decoded.role !== 'Mediator') {
-        // If someone lands here by mistake, bounce to general router
         navigate('/dashboard');
       }
     } catch {
@@ -50,17 +60,61 @@ const MediatorDashboard = () => {
     }
   };
 
+  // Load upcoming sessions for mediator (FR-8)
+  const loadUpcoming = async () => {
+    try {
+      const token = localStorage.getItem('token') || '';
+      const { data } = await axios.get('/api/schedule/my-appointments', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const items = Array.isArray(data.appointments) ? data.appointments : [];
+      const now = Date.now();
+      const filtered = items
+        .filter(a => a.status === 'Scheduled' && new Date(a.end).getTime() >= now)
+        .sort((a, b) => new Date(a.start) - new Date(b.start))
+        .slice(0, 3);
+      setUpcoming(filtered);
+    } catch {
+      setUpcoming([]);
+    }
+  };
+
+  // Load my reviews
+  const loadReviews = async () => {
+    if (!id) return;
+    try {
+      const token = localStorage.getItem('token') || '';
+      const cfg = { headers: { Authorization: `Bearer ${token}` } };
+
+      const summary = await axios.get(`/api/mediators/${id}/review-summary`, cfg);
+      setAvgRating(summary.data?.avgRating ?? 0);
+      setReviewCount(summary.data?.count ?? 0);
+
+      const list = await axios.get(`/api/mediators/${id}/reviews?limit=20&page=1`, cfg);
+      setReviews(list.data?.reviews || []);
+    } catch {
+      setAvgRating(0);
+      setReviewCount(0);
+      setReviews([]);
+    }
+  };
+
   useEffect(() => {
     load();
+    loadUpcoming();
   }, []);
 
-  const counts = useMemo(
-    () => ({ assigned: cases.length }),
-    [cases]
-  );
+  useEffect(() => {
+    loadReviews();
+  }, [id]);
+
+  const counts = useMemo(() => ({ assigned: cases.length }), [cases]);
 
   const recent = useMemo(
-    () => [...cases].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).slice(0, 5),
+    () =>
+      [...cases]
+        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+        .slice(0, 5),
     [cases]
   );
 
@@ -87,6 +141,90 @@ const MediatorDashboard = () => {
           <button onClick={load} style={styles.refreshBtn} title="Refresh tracker">
             Refresh
           </button>
+          <button
+            onClick={() => navigate('/messages')}
+            style={styles.messagesBtn}
+            title="Open chat threads"
+          >
+            Open Messages
+          </button>
+        </div>
+
+        {/* ✅ NEW: Mediator Profile Card with collapsible reviews */}
+        <div style={styles.sectionCard}>
+          <h3 style={styles.sectionTitle}>My Profile</h3>
+          <div style={{ marginBottom: 6 }}>
+            <strong>{name}</strong>
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            ⭐ {avgRating} / 5 ({reviewCount} reviews)
+          </div>
+          <button
+            style={styles.linkBtn}
+            onClick={() => setShowReviews(s => !s)}
+          >
+            {showReviews ? 'Hide Reviews' : 'Show Reviews'}
+          </button>
+
+          {showReviews && (
+            <div style={styles.reviewScroll}>
+              {reviews.length === 0 ? (
+                <div style={styles.muted}>No reviews yet.</div>
+              ) : (
+                reviews.map((r, i) => (
+                  <div key={i} style={styles.reviewBox}>
+                    <div>⭐ {r.rating}</div>
+                    <div style={styles.mutedSmall}>{r.comment || 'No comment'}</div>
+                    <div style={styles.mutedSmall}>
+                      {new Date(r.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ✅ NEW: Scheduling (FR-8) */}
+        <div style={styles.sectionCard}>
+          <div style={styles.sectionHeader}>
+            <h3 style={styles.sectionTitle}>Scheduling</h3>
+            <button style={styles.linkBtn} onClick={() => navigate('/schedule/mediator')}>
+              Manage Availability
+            </button>
+          </div>
+          <p style={styles.muted}>
+            Add availability slots and see your next sessions. Clients can only book inside your available windows.
+          </p>
+
+          {/* Upcoming mini-list */}
+          <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+            {upcoming.length === 0 ? (
+              <div style={styles.muted}>No upcoming sessions.</div>
+            ) : (
+              upcoming.map(a => (
+                <div key={a._id} style={styles.listItem}>
+                  <div><strong>{a.caseId?.title || 'Case'}</strong></div>
+                  <div style={styles.small}>Client: {a.clientId?.name || '—'}</div>
+                  <div>{new Date(a.start).toLocaleString()} — {new Date(a.end).toLocaleString()}</div>
+                  <span style={styles.badge}>{a.status}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Messages info card */}
+        <div style={styles.sectionCard}>
+          <div style={styles.sectionHeader}>
+            <h3 style={styles.sectionTitle}>Messages (Chat)</h3>
+            <button style={styles.linkBtn} onClick={() => navigate('/messages')}>
+              Go to Messages
+            </button>
+          </div>
+          <p style={styles.muted}>
+            Chat with clients for cases that are assigned to you. Each thread is scoped to a case.
+          </p>
         </div>
 
         {/* Tracker */}
@@ -175,7 +313,7 @@ const styles = {
   logoutButton: {
     position: 'absolute',
     top: 14,
-    right: 14, // keep logout on the right
+    right: 14,
     padding: '8px 12px',
     backgroundColor: '#cc0000',
     color: '#fff',
@@ -198,7 +336,75 @@ const styles = {
     cursor: 'pointer',
     fontWeight: 700,
   },
+  messagesBtn: {
+    padding: '10px 14px',
+    background: '#0b5ed7',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 10,
+    cursor: 'pointer',
+    fontWeight: 700,
+  },
 
+  // Cards
+  sectionCard: {
+    background: '#fff',
+    borderRadius: 10,
+    padding: 16,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+    marginBottom: 18,
+    border: '1px solid #e5e7eb',
+  },
+  sectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  sectionTitle: { margin: 0, color: '#0f5132' },
+  linkBtn: {
+    background: '#0b5ed7',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 12px',
+    cursor: 'pointer',
+    fontWeight: 700,
+  },
+  muted: { color: '#64748b', margin: 0 },
+
+  // Reviews
+  reviewScroll: {
+    maxHeight: 180,
+    overflowY: 'auto',
+    border: '1px solid #e5e7eb',
+    borderRadius: 8,
+    padding: 8,
+    background: '#f9fafb',
+    marginTop: 6,
+  },
+  reviewBox: { borderBottom: '1px solid #e2e8f0', padding: '6px 4px' },
+  mutedSmall: { color: '#94a3b8', fontSize: 12 },
+
+  // Mini list
+  listItem: {
+    border: '1px solid #e5e7eb',
+    borderRadius: 10,
+    background: '#f8fafc',
+    padding: 10,
+  },
+  small: { fontSize: 12, color: '#64748b' },
+  badge: {
+    display: 'inline-block',
+    padding: '2px 8px',
+    borderRadius: 9999,
+    fontSize: 12,
+    background: '#e0f2fe',
+    color: '#075985',
+    marginTop: 4,
+  },
+
+  // Tracker
   trackerBar: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -216,6 +422,7 @@ const styles = {
   trackLabel: { color: '#334155', fontWeight: 600 },
   trackValue: { color: '#14532d', fontWeight: 800, fontSize: 22 },
 
+  // Table
   tableCard: {
     background: '#fff',
     border: '1px solid #e5e7eb',
@@ -251,15 +458,6 @@ const styles = {
     color: '#fff',
     cursor: 'pointer',
     fontWeight: 600,
-  },
-  mutedSmall: { color: '#64748b', fontSize: 12 },
-  errorBox: {
-    background: '#fee2e2',
-    color: '#991b1b',
-    border: '1px solid #fecaca',
-    borderRadius: 8,
-    padding: '10px 12px',
-    marginBottom: 10,
   },
 };
 

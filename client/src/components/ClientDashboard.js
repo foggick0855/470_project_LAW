@@ -41,6 +41,26 @@ const ClientDashboard = () => {
     navigate('/login');
   };
 
+  // ===== FR-8: Upcoming sessions (mini list) =====
+  const [upcoming, setUpcoming] = useState([]);
+  const loadUpcoming = async () => {
+    try {
+      const { data } = await axios.get('/api/schedule/my-appointments', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+      });
+      const items = Array.isArray(data.appointments) ? data.appointments : [];
+      const now = Date.now();
+      const filtered = items
+        .filter(a => a.status === 'Scheduled' && new Date(a.end).getTime() >= now)
+        .sort((a,b) => new Date(a.start) - new Date(b.start))
+        .slice(0, 3);
+      setUpcoming(filtered);
+    } catch {
+      setUpcoming([]);
+    }
+  };
+  useEffect(() => { loadUpcoming(); }, []);
+
   // ===== FR-6: Mediator Directory state =====
   const [filters, setFilters] = useState({
     q: '',
@@ -50,7 +70,10 @@ const ClientDashboard = () => {
     city: '',
     yearsMin: '',
     yearsMax: '',
-    sort: 'experience_desc', // experience_desc | experience_asc | name_asc | name_desc
+    rateMin: '',
+    rateMax: '',
+    // experience_desc | experience_asc | name_asc | name_desc | rate_asc | rate_desc | rating_desc
+    sort: 'experience_desc',
   });
 
   const [loading, setLoading] = useState(false);
@@ -84,20 +107,39 @@ const ClientDashboard = () => {
       city: '',
       yearsMin: '',
       yearsMax: '',
+      rateMin: '',
+      rateMax: '',
       sort: 'experience_desc',
     });
 
-  // Build query params safely
+  // Build query params to match backend controller
   const buildParams = () => {
     const p = {};
     if (filters.q) p.q = filters.q;
     if (filters.country) p.country = filters.country;
     if (filters.city) p.city = filters.city;
-    if (filters.yearsMin) p.yearsMin = Number(filters.yearsMin);
-    if (filters.yearsMax) p.yearsMax = Number(filters.yearsMax);
-    if (filters.sort) p.sort = filters.sort;
-    if (filters.languages.length) p.languages = filters.languages;       // array
-    if (filters.specialties.length) p.specialties = filters.specialties; // array
+    if (filters.yearsMin !== '' && !isNaN(Number(filters.yearsMin))) p.minExp = Number(filters.yearsMin);
+    if (filters.yearsMax !== '' && !isNaN(Number(filters.yearsMax))) p.maxExp = Number(filters.yearsMax);
+    if (filters.rateMin !== '' && !isNaN(Number(filters.rateMin))) p.minRate = Number(filters.rateMin);
+    if (filters.rateMax !== '' && !isNaN(Number(filters.rateMax))) p.maxRate = Number(filters.rateMax);
+
+    if (filters.sort) {
+      // Map UI values to backend sort keys
+      const sortMap = {
+        experience_desc: 'expDesc',
+        experience_asc: 'expAsc',
+        name_asc: 'nameAsc',
+        name_desc: 'nameDesc',
+        rate_asc: 'rateAsc',
+        rate_desc: 'rateDesc',
+        rating_desc: 'ratingDesc',
+      };
+      p.sort = sortMap[filters.sort] || 'expDesc';
+    }
+
+    // Backend expects singular names, comma-separated (it splits on ',')
+    if (filters.languages.length) p.language = filters.languages.join(',');
+    if (filters.specialties.length) p.specialization = filters.specialties.join(',');
     return p;
   };
 
@@ -189,6 +231,43 @@ const ClientDashboard = () => {
       <h2 style={styles.title}>Welcome to Your Dashboard</h2>
       <p style={styles.subtitle}>Hello, <strong>{name}</strong>!</p>
 
+      {/* ===== NEW: Messages quick access ===== */}
+      <div style={styles.sectionCard}>
+        <div style={styles.sectionHeader}>
+          <h3 style={styles.sectionTitle}>Messages (Chat)</h3>
+          <button style={styles.linkBtn} onClick={() => navigate('/messages')}>
+            Open Messages
+          </button>
+        </div>
+        <p style={styles.muted}>Chat with your assigned mediator for accepted cases.</p>
+      </div>
+
+      {/* ===== NEW: Schedule Session (FR-8 entry point + upcoming) ===== */}
+      <div style={styles.sectionCard}>
+        <div style={styles.sectionHeader}>
+          <h3 style={styles.sectionTitle}>Schedule Session</h3>
+          <button style={styles.primaryBtn} onClick={() => navigate('/schedule/client')}>
+            Open Scheduler
+          </button>
+        </div>
+        <p style={styles.muted}>Pick an assigned case and choose a time from your mediator’s availability.</p>
+
+        <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+          {upcoming.length === 0 ? (
+            <div style={styles.muted}>No upcoming sessions yet.</div>
+          ) : (
+            upcoming.map(a => (
+              <div key={a._id} style={styles.listItem}>
+                <div><strong>{a.caseId?.title || 'Case'}</strong></div>
+                <div style={styles.small}>With: {a.mediatorId?.name || 'Mediator'}</div>
+                <div>{new Date(a.start).toLocaleString()} — {new Date(a.end).toLocaleString()}</div>
+                <span style={styles.badge}>{a.status}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
       {/* ===== Quick Case Tracker ===== */}
       <div style={styles.sectionCard}>
         <div style={styles.sectionHeader}>
@@ -232,15 +311,15 @@ const ClientDashboard = () => {
             />
           </div>
 
-            <div style={styles.filterCol}>
-              <label style={styles.label}>City</label>
-              <input
-                value={filters.city}
-                onChange={onText('city')}
-                placeholder="Dhaka"
-                style={styles.input}
-              />
-            </div>
+          <div style={styles.filterCol}>
+            <label style={styles.label}>City</label>
+            <input
+              value={filters.city}
+              onChange={onText('city')}
+              placeholder="Dhaka"
+              style={styles.input}
+            />
+          </div>
 
           <div style={styles.filterColRow}>
             <div style={{ flex: 1 }}>
@@ -265,6 +344,29 @@ const ClientDashboard = () => {
             </div>
           </div>
 
+          <div style={styles.filterColRow}>
+            <div style={{ flex: 1 }}>
+              <label style={styles.label}>Min Rate (৳/hr)</label>
+              <input
+                type="number"
+                min="0"
+                value={filters.rateMin}
+                onChange={onText('rateMin')}
+                style={styles.input}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={styles.label}>Max Rate (৳/hr)</label>
+              <input
+                type="number"
+                min="0"
+                value={filters.rateMax}
+                onChange={onText('rateMax')}
+                style={styles.input}
+              />
+            </div>
+          </div>
+
           <div style={styles.filterCol}>
             <label style={styles.label}>Sort</label>
             <select
@@ -276,6 +378,9 @@ const ClientDashboard = () => {
               <option value="experience_asc">Experience (low → high)</option>
               <option value="name_asc">Name (A → Z)</option>
               <option value="name_desc">Name (Z → A)</option>
+              <option value="rate_asc">Rate (low → high)</option>
+              <option value="rate_desc">Rate (high → low)</option>
+              <option value="rating_desc">Top Rated</option>
             </select>
           </div>
         </div>
@@ -658,6 +763,24 @@ const styles = {
   },
   cardActions: { display: 'flex', gap: 8, marginTop: 8 },
 
+  // New mini-list styles
+  listItem: {
+    border: '1px solid #e5e7eb',
+    borderRadius: 10,
+    background: '#f8fafc',
+    padding: 10,
+  },
+  small: { fontSize: 12, color: '#64748b' },
+  badge: {
+    display: 'inline-block',
+    padding: '2px 8px',
+    borderRadius: 9999,
+    fontSize: 12,
+    background: '#e0f2fe',
+    color: '#075985',
+    marginTop: 4,
+  },
+
   // Modal
   modalOverlay: {
     position: 'fixed', inset: 0,
@@ -684,6 +807,19 @@ const styles = {
     padding: '8px 10px',
     fontSize: '0.9rem',
     marginTop: 8,
+  },
+
+  logoutButton: {
+    position: 'absolute',
+    top: '1rem',
+    right: '1rem',
+    padding: '0.5rem 1rem',
+    fontSize: '1rem',
+    backgroundColor: '#cc0000',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
   },
 };
 

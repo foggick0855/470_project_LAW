@@ -23,10 +23,15 @@ app.use('/uploads', express.static(uploadsDir));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/cases', require('./routes/caseRoutes'));
+app.use('/api/schedule', require('./routes/scheduleRoutes'));
+app.use('/api/agreements', require('./routes/agreementRoutes'));
 
 // FR-6: Mediator directory (public browse/search) + mediator self-service profile
 app.use('/api/mediators', require('./routes/mediatorRoutes'));                // public list/view
 app.use('/api/mediator-profiles', require('./routes/mediatorProfileRoutes')); // mediator edits + admin fetch
+
+// ✅ NEW: Non-realtime chat routes
+app.use('/api/messages', require('./routes/messageRoutes'));
 
 /* -------------------- DB Connection -------------------- */
 mongoose

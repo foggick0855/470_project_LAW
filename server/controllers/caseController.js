@@ -231,3 +231,64 @@ exports.getAssignedCasesForMediator = async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 };
+
+// -------- Client: add/update a review for a case --------
+// Expected body: { rating: Number (1-5), comment?: String }
+exports.addReview = async (req, res) => {
+  try {
+    const { id } = req.params; // case id
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid case id' });
+    }
+
+    const { rating, comment = '' } = req.body;
+
+    // Validate rating
+    const r = Number(rating);
+    if (!Number.isFinite(r) || r < 1 || r > 5) {
+      return res.status(400).json({ message: 'rating must be a number between 1 and 5' });
+    }
+
+    const c = await Case.findById(id);
+    if (!c) return res.status(404).json({ message: 'Case not found' });
+
+    // Only the case owner (client) can review
+    if (!ensureOwner(c, req.user)) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    // Ensure reviews array exists
+    if (!Array.isArray(c.reviews)) c.reviews = [];
+
+    // Upsert: if user already reviewed, update; else push new
+    const uid = ownerId(req.user);
+    const existingIdx = c.reviews.findIndex((rv) => String(rv.user) === uid);
+
+    const reviewPayload = {
+      user: uid,
+      rating: r,
+      comment: String(comment || ''),
+      createdAt: new Date(),
+    };
+
+    if (existingIdx >= 0) {
+      c.reviews[existingIdx] = { ...c.reviews[existingIdx], ...reviewPayload, updatedAt: new Date() };
+    } else {
+      c.reviews.push(reviewPayload);
+    }
+
+    // Optional audit log
+    c.auditLog.push({ event: 'REVIEW_ADDED', by: uid, meta: { rating: r } });
+
+    await c.save();
+
+    // Return the latest reviews (no heavy populate to keep it simple)
+    return res.json({
+      message: existingIdx >= 0 ? 'Review updated' : 'Review submitted',
+      reviews: c.reviews,
+    });
+  } catch (err) {
+    console.error('addReview error:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};

@@ -12,6 +12,7 @@ const {
   getSubmittedCasesForAdmin,
   assignMediator,
   getAssignedCasesForMediator,
+  addReview, // ✅ NEW: controller for posting reviews
 } = require('../controllers/caseController');
 const { uploadEvidence } = require('../middleware/upload');
 
@@ -38,6 +39,9 @@ router.delete('/:id/attachments/:attId', protect, authorize('Client'), deleteAtt
 
 // Admin: assign mediator to a case
 router.patch('/:id/assign', protect, authorize('Admin'), assignMediator);
+
+// ✅ Client: leave a review on a case (must be before the catch-all :id route)
+router.post('/:id/reviews', protect, authorize('Client'), addReview);
 
 // ----- Catch-all ID route LAST -----
 router.get('/:id', protect, getCaseById);

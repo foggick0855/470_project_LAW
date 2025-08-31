@@ -24,6 +24,18 @@ const AuditEntrySchema = new mongoose.Schema(
   { _id: false }
 );
 
+// ✅ New: embedded review schema (for FR-11)
+const ReviewSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    rating: { type: Number, min: 1, max: 5, required: true },
+    comment: { type: String, default: '' },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date },
+  },
+  { _id: true }
+);
+
 const CaseSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true, minlength: 6, maxlength: 100 },
@@ -37,7 +49,7 @@ const CaseSchema = new mongoose.Schema(
     jurisdiction: { type: String, required: true },
 
     // Parties
-    claimantId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    claimantId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     respondent: {
       name: { type: String },
       email: { type: String },
@@ -52,16 +64,38 @@ const CaseSchema = new mongoose.Schema(
     // Workflow state
     status: {
       type: String,
-      enum: ['Draft', 'Submitted', 'Assigned'], // ⬅️ added "Assigned"
+      enum: ['Draft', 'Submitted', 'Assigned'],
       default: 'Draft',
       index: true,
     },
 
-    mediatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    mediatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+
+    // ✅ Final document gate for reviews (FR-11)
+    documentsFinalized: { type: Boolean, default: false },
+    documentsFinalizedAt: { type: Date },
+
+    // ✅ New: reviews embedded in Case
+    reviews: { type: [ReviewSchema], default: [] },
 
     auditLog: [AuditEntrySchema],
   },
   { timestamps: true }
 );
+
+/* ------------------------- Minimal guard helpers (FR-9/10) ------------------------- */
+CaseSchema.methods.isClaimant = function (userId) {
+  if (!userId || !this.claimantId) return false;
+  return this.claimantId.toString() === userId.toString();
+};
+
+CaseSchema.methods.isMediator = function (userId) {
+  if (!userId || !this.mediatorId) return false;
+  return this.mediatorId.toString() === userId.toString();
+};
+
+CaseSchema.methods.isParticipant = function (userId) {
+  return this.isClaimant(userId) || this.isMediator(userId);
+};
 
 module.exports = mongoose.model('Case', CaseSchema);
